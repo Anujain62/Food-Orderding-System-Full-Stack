@@ -1,0 +1,100 @@
+import React, { useEffect, useState } from 'react'
+import PublicLayout from '../components/PublicLayout'
+import { useNavigate, useParams } from 'react-router-dom'
+import CancelOrderModel from '../components/CancelOrderModel'
+
+const OrderDetails = () => {
+
+  const userId = localStorage.getItem('userId')
+  const [orderItems, setOrderItems] = useState([])
+  const [orderAddress, setOrderAddress] = useState(null)
+  const [total, setTotal] = useState(0)
+  const navigate = useNavigate()
+  const { order_number } = useParams()
+  const [showCancelModel, setShowCancelModel] = useState(false)
+
+  const handleCloseModel = () => setShowCancelModel(false)
+
+  useEffect(() => {
+    if (!userId) {
+      navigate('/login')
+      return
+    }
+    fetch(`http://127.0.0.1:8000/api/orders/by_order_number/${order_number}/`)
+      .then(res => res.json())
+      .then(data => {
+        setOrderItems(data)
+        const totalAmount = data.reduce((sum, item) => sum + item.food.price * item.quantity, 0)
+        setTotal(totalAmount)
+      })
+
+    fetch(`http://127.0.0.1:8000/api/orders/by_order_address/${order_number}/`)
+      .then(res => res.json())
+      .then(data => {
+        setOrderAddress(data)
+      })
+  }, [order_number])
+
+  return (
+    <PublicLayout>
+      <div className='container py-5'>
+        <h3 className='mb-4 text-primary'>
+          <i className='fas fa-receipt me-2'></i> Order #{order_number} Details
+        </h3>
+        <div className='row'>
+          <div className='col-md-7'>
+            {orderItems.map((item, index) => (
+              <div key={index} className='card mb-3 shadow-sm border-0'>
+                <div className='row d-flex align-items-center'>
+                  <div className='col-md-5'>
+                    <img src={`http://127.0.0.1:8000${item.food.image}`} className='img-fluid rounded-start' style={{ minHeight: '200px', height: '250px', width: '100%' }} />
+                  </div>
+                  <div className='col-md-7 text-center'>
+                    <h5>{item.food.item_name} ({item.food.item_quantity})</h5>
+                    <p>{item.food.item_description}</p>
+                    <p><strong>Price : </strong>₹ {item.food.price}</p>
+                    <p><strong>Quantity : </strong> {item.quantity}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className='col-md-5'>
+            {orderAddress && (
+              <div className='card p-4 shadow-sm border-0'>
+                <h5 className='fw-semibold mb-3'>
+                  <i className='fas fa-map-marker-alt me-2 text-danger'></i> Delivery Details
+                </h5>
+                <p><strong>Date : </strong>{new Date(orderAddress.order_time).toLocaleString()}</p>
+                <p><strong>Address : </strong>{orderAddress.address}</p>
+                <p><strong>Status : </strong>{orderAddress.order_final_status || "Waiting for Restaurant Confirmation"} </p>
+                <p><strong>Payment Mode : </strong><span className='badge bg-info text-dark ms-2'>{orderAddress.payment_mode}</span></p>
+                <p><strong>Total : </strong>₹ {total}</p>
+                <a href={`http://127.0.0.1:8000/api/invoice/${order_number}/`} target='_blank' className='btn btn-primary w-100 my-2'>
+                  <i className='fas fa-file-invoice me-2'></i>Invoice
+                </a>
+
+                {orderAddress && (
+                  <>
+                    <CancelOrderModel show={showCancelModel} handleCloseModel={handleCloseModel} orderNumber={order_number} payment_mode={orderAddress.payment_mode} />
+                    {(orderAddress.order_final_status === null || 
+                    orderAddress.order_final_status === 'Order Confirmed' || 
+                    orderAddress.order_final_status === 'Food being Prepared') ? (
+                      <a onClick={()=>setShowCancelModel(true)} className='btn btn-danger w-100'>
+                        <i className='fas fa-times-circle me-2'></i>Cancel Order
+                      </a>
+                    ) :(
+                      <p className='text-danger mt-2'>Order can't be cancelled (Current Status : {orderAddress.order_final_status})</p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </PublicLayout>
+  )
+}
+
+export default OrderDetails
